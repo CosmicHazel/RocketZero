@@ -495,20 +495,29 @@ def select_action(
 
     actions = np.zeros(4, dtype=np.int64)
     visit_count_distribution_entropy = np.zeros(4)
+
+    visit_counts = np.array(visit_counts).reshape(4, 324)
+
     for player in range(4):
         player_visit_counts = visit_counts[player]
-        action_probs = [
-            visit_count_i ** (1 / temperature) for visit_count_i in player_visit_counts
-        ]
-        action_probs = [x / sum(action_probs) for x in action_probs]
+
+        # Ensure player_visit_counts is not empty and contains non-zero values
+        if np.sum(player_visit_counts) == 0:
+            actions[player] = np.random.choice(324)
+            visit_count_distribution_entropy[player] = 0
+            continue
+
+        action_probs = player_visit_counts ** (1 / temperature)
+        action_probs = action_probs / np.sum(action_probs)
 
         if deterministic:
             action_pos = np.argmax(player_visit_counts)
         else:
-            action_pos = np.random.choice(len(player_visit_counts), p=action_probs)
+            action_pos = np.random.choice(324, p=action_probs)
 
         actions[player] = action_pos
         visit_count_distribution_entropy[player] = entropy(action_probs, base=2)
+
     return actions, visit_count_distribution_entropy
 
 
