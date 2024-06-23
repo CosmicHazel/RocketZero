@@ -87,14 +87,20 @@ def batch_backpropagate(int current_latent_state_index, float discount_factor, l
     cdef vector[float] cvalue_prefixs = value_prefixs
     cdef vector[float] cvalues = values
     cdef vector[vector[float]] cpolicies = policies
+    cdef vector[int] cis_reset_list = is_reset_list
+    cdef vector[int] cto_play_batch = to_play_batch
 
     cbatch_backpropagate(current_latent_state_index, discount_factor, cvalue_prefixs, cvalues, cpolicies,
-                          min_max_stats_lst.cmin_max_stats_lst, results.cresults, is_reset_list, to_play_batch)
+                          min_max_stats_lst.cmin_max_stats_lst, results.cresults, cis_reset_list, cto_play_batch)
 
 @cython.binding
 def batch_traverse(Roots roots, int pb_c_base, float pb_c_init, float discount_factor, MinMaxStatsList min_max_stats_lst,
                    ResultsWrapper results, list virtual_to_play_batch):
+    cdef vector[int] cvirtual_to_play_batch = virtual_to_play_batch
     cbatch_traverse(roots.roots, pb_c_base, pb_c_init, discount_factor, min_max_stats_lst.cmin_max_stats_lst,
-                    results.cresults, virtual_to_play_batch)
+                    results.cresults, cvirtual_to_play_batch)
 
-    return results.cresults.latent_state_index_in_search_path, results.cresults.latent_state_index_in_batch, results.cresults.last_actions, results.cresults.virtual_to_play_batchs
+    return (results.cresults.latent_state_index_in_search_path, 
+            results.cresults.latent_state_index_in_batch, 
+            results.cresults.last_actions, 
+            results.cresults.virtual_to_play_batchs)

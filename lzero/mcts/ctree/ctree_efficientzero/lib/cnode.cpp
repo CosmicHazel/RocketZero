@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <map>
 #include <cassert>
+#include <unordered_map>
 
 #ifdef _WIN32
 #include "..\..\common_lib\utils.cpp"
@@ -12,9 +13,45 @@
 #include "../../common_lib/utils.cpp"
 #endif
 
+/*
+Rocket League Bot Overview:
+
+This code is part of a Rocket League bot implementation using a novel "4-hot" control mechanism.
+Key features of the bot:
+
+1. 4-Hot Control: A single AI agent simultaneously controls all 4 players on the same team.
+   This allows for coordinated team strategies and complex multi-player maneuvers.
+
+2. Large Action Space: Each individual player has 324 possible actions, resulting in a
+   total action space of 1296 (324 * 4) for the entire team controlled by the AI.
+
+3. MCTS Implementation: This file (cnode.cpp) implements the Monte Carlo Tree Search (MCTS)
+   algorithm, which is used for decision making and planning in the bot's AI.
+
+This unique approach allows the bot to make strategic decisions that consider the
+actions of all team members simultaneously, potentially leading to more coordinated
+and effective gameplay strategies.
+*/
 
 namespace tree
 {
+    class CNodeChildren
+    {
+    public:
+        std::unordered_map<uint64_t, CNode> map;
+    };
+
+    CNode::ChildrenAccessor::ChildrenAccessor(CNodeChildren *children) : children(children) {}
+
+    CNode &CNode::ChildrenAccessor::operator[](uint64_t action_key)
+    {
+        return children->map[action_key];
+    }
+
+    size_t CNode::ChildrenAccessor::size() const
+    {
+        return children ? children->map.size() : 0;
+    }
 
     CSearchResults::CSearchResults()
     {
@@ -42,7 +79,7 @@ namespace tree
 
     //*********************************************************
 
-    CNode::CNode()
+    CNode::CNode() : childrenImpl(new CNodeChildren()), children(childrenImpl)
     {
         /*
         Overview:
@@ -54,13 +91,13 @@ namespace tree
         this->is_reset = 0;
         this->visit_count = 0;
         this->value_sum = 0;
-        this->best_action = -1;
+        this->best_action = {-1, -1, -1, -1};
         this->to_play = 0;
         this->value_prefix = 0.0;
         this->parent_value_prefix = 0.0;
     }
 
-    CNode::CNode(float prior, std::vector<int> &legal_actions)
+    CNode::CNode(float prior, std::vector<int> &legal_actions) : childrenImpl(new CNodeChildren()), children(childrenImpl)
     {
         /*
         Overview:
@@ -71,11 +108,10 @@ namespace tree
         */
         this->prior = prior;
         this->legal_actions = legal_actions;
-
         this->is_reset = 0;
         this->visit_count = 0;
         this->value_sum = 0;
-        this->best_action = -1;
+        this->best_action = {-1, -1, -1, -1};
         this->to_play = 0;
         this->value_prefix = 0.0;
         this->parent_value_prefix = 0.0;
@@ -83,7 +119,10 @@ namespace tree
         this->batch_index = -1;
     }
 
-    CNode::~CNode() {}
+    CNode::~CNode()
+    {
+        delete childrenImpl;
+    }
 
     void CNode::expand(int to_play, int current_latent_state_index, int batch_index, float value_prefix, const std::vector<float> &policy_logits)
     {
@@ -102,7 +141,8 @@ namespace tree
         this->batch_index = batch_index;
         this->value_prefix = value_prefix;
 
-        int action_num = policy_logits.size();
+        int action_num = policy_logits.size() / 4; // Assuming policy_logits contains logits for all 4 players
+        assert(action_num == ACTIONS_PER_PLAYER);
         if (this->legal_actions.size() == 0)
         {
             for (int i = 0; i < action_num; ++i)
@@ -136,18 +176,23 @@ namespace tree
             policy[a] = temp_policy;
         }
 
-        float prior;
-        for (auto a : this->legal_actions)
+        // float prior;
+
+        for (int player = 0; player < 4; player++)
         {
-            prior = policy[a] / policy_sum;
-            std::vector<int> tmp_empty;
-            this->children[a] = CNode(prior, tmp_empty); // only for muzero/efficient zero, not support alphazero
+            for (int a = 0; a < action_num; a++)
+            {
+                float prior = policy[a + player * action_num] / policy_sum;
+                int action_key = a + player * action_num; // Unique key for each action of each player
+                std::vector<int> tmp_empty;
+                this->children[action_key] = CNode(prior, tmp_empty);
+            }
         }
-        #ifdef _WIN32
+#ifdef _WIN32
         // 释放数组内存
         delete[] policy;
-        #else
-        #endif
+#else
+#endif
     }
 
     void CNode::add_exploration_noise(float exploration_fraction, const std::vector<float> &noises)
@@ -183,19 +228,22 @@ namespace tree
         float total_unsigned_q = 0.0;
         int total_visits = 0;
         float parent_value_prefix = this->value_prefix;
-        for (auto a : this->legal_actions)
+        for (int i = 0; i < 4; i++)
         {
-            CNode *child = this->get_child(a);
-            if (child->visit_count > 0)
+            for (auto a : this->legal_actions)
             {
-                float true_reward = child->value_prefix - parent_value_prefix;
-                if (this->is_reset == 1)
+                CNode *child = this->get_child({a, a, a, a}); // This is a simplification
+                if (child->visit_count > 0)
                 {
-                    true_reward = child->value_prefix;
+                    float true_reward = child->value_prefix - parent_value_prefix;
+                    if (this->is_reset == 1)
+                    {
+                        true_reward = child->value_prefix;
+                    }
+                    float qsa = true_reward + discount_factor * child->value();
+                    total_unsigned_q += qsa;
+                    total_visits += 1;
                 }
-                float qsa = true_reward + discount_factor * child->value();
-                total_unsigned_q += qsa;
-                total_visits += 1;
             }
         }
 
@@ -238,7 +286,7 @@ namespace tree
         }
     }
 
-    std::vector<int> CNode::get_trajectory()
+    std::vector<std::vector<int>> CNode::get_trajectory()
     {
         /*
         Overview:
@@ -246,11 +294,11 @@ namespace tree
         Returns:
             - traj: a vector of node index, which is the current best trajectory from this node.
         */
-        std::vector<int> traj;
+        std::vector<std::vector<int>> traj;
 
         CNode *node = this;
-        int best_action = node->best_action;
-        while (best_action >= 0)
+        std::vector<int> best_action = node->best_action;
+        while (best_action[0] >= 0)
         {
             traj.push_back(best_action);
 
@@ -280,7 +328,23 @@ namespace tree
         return distribution;
     }
 
-    CNode *CNode::get_child(int action)
+    CNode *CNode::get_child(const std::vector<int> &actions)
+    {
+        uint64_t action_key = encode_action(actions);
+        return &(this->children[action_key]);
+    }
+
+    uint64_t CNode::encode_action(const std::vector<int> &actions)
+    {
+        uint64_t encoded = 0;
+        for (size_t i = 0; i < actions.size() && i < 4; ++i)
+        {
+            encoded |= static_cast<uint64_t>(actions[i]) << (i * 16);
+        }
+        return encoded;
+    }
+
+    CNode *CNode::get_child(uint64_t action)
     {
         /*
         Overview:
@@ -368,15 +432,15 @@ namespace tree
         this->roots.clear();
     }
 
-    std::vector<std::vector<int> > CRoots::get_trajectories()
+    std::vector<std::vector<std::vector<int>>> CRoots::get_trajectories()
     {
         /*
         Overview:
             Find the current best trajectory starts from each root.
         Returns:
-            - traj: a vector of node index, which is the current best trajectory from each root.
+            - trajs: a vector of trajectories, where each trajectory is a vector of 4-hot actions.
         */
-        std::vector<std::vector<int> > trajs;
+        std::vector<std::vector<std::vector<int>>> trajs;
         trajs.reserve(this->root_num);
 
         for (int i = 0; i < this->root_num; ++i)
@@ -433,7 +497,7 @@ namespace tree
         */
         std::stack<CNode *> node_stack;
         node_stack.push(root);
-        float parent_value_prefix = 0.0;
+        // float parent_value_prefix = 0.0;
         int is_reset = 0;
         while (node_stack.size() > 0)
         {
@@ -600,7 +664,7 @@ namespace tree
         }
     }
 
-    int cselect_child(CNode *root, tools::CMinMaxStats &min_max_stats, int pb_c_base, float pb_c_init, float discount_factor, float mean_q, int players)
+    std::vector<int> cselect_child(CNode *root, tools::CMinMaxStats &min_max_stats, int pb_c_base, float pb_c_init, float discount_factor, float mean_q, int players)
     {
         /*
         Overview:
@@ -616,34 +680,40 @@ namespace tree
         Returns:
             - action: the action to select.
         */
-        float max_score = FLOAT_MIN;
-        const float epsilon = 0.000001;
-        std::vector<int> max_index_lst;
-        for (auto a : root->legal_actions)
+
+        std::vector<int> actions;
+
+        // Select the best action for each player independently to reduce search space
+        for (int player = 0; player < 4; player++)
         {
-            CNode *child = root->get_child(a);
-            float temp_score = cucb_score(child, min_max_stats, mean_q, root->is_reset, root->visit_count - 1, root->value_prefix, pb_c_base, pb_c_init, discount_factor, players);
+            float max_score = FLOAT_MIN;
+            int best_action = 0;
 
-            if (max_score < temp_score)
+            for (int a = 0; a < ACTIONS_PER_PLAYER; a++)
             {
-                max_score = temp_score;
+                // Use the existing children map to get the child node
+                // We're assuming here that the children map is populated with individual actions
+                // rather than full 4-hot action combinations
+                CNode *child = root->get_child(a + player * ACTIONS_PER_PLAYER);
 
-                max_index_lst.clear();
-                max_index_lst.push_back(a);
+                if (child == nullptr)
+                    continue; // Skip if this action doesn't exist
+
+                float temp_score = cucb_score(child, min_max_stats, mean_q, root->is_reset,
+                                              root->visit_count - 1, root->value_prefix,
+                                              pb_c_base, pb_c_init, discount_factor, players);
+
+                if (temp_score > max_score)
+                {
+                    max_score = temp_score;
+                    best_action = a;
+                }
             }
-            else if (temp_score >= max_score - epsilon)
-            {
-                max_index_lst.push_back(a);
-            }
+
+            actions[player] = best_action;
         }
 
-        int action = 0;
-        if (max_index_lst.size() > 0)
-        {
-            int rand_index = rand() % max_index_lst.size();
-            action = max_index_lst[rand_index];
-        }
-        return action;
+        return actions;
     }
 
     float cucb_score(CNode *child, tools::CMinMaxStats &min_max_stats, float parent_mean_q, int is_reset, float total_children_visit_counts, float parent_value_prefix, float pb_c_base, float pb_c_init, float discount_factor, int players)
@@ -723,7 +793,7 @@ namespace tree
         // set seed
         get_time_and_set_rand_seed();
 
-        int last_action = -1;
+        std::vector<int> last_action = {-1, -1, -1, -1};
         float parent_q = 0.0;
         results.search_lens = std::vector<int>();
 
@@ -751,7 +821,7 @@ namespace tree
                 is_root = 0;
                 parent_q = mean_q;
 
-                int action = cselect_child(node, min_max_stats_lst->stats_lst[i], pb_c_base, pb_c_init, discount_factor, mean_q, players);
+                std::vector<int> actions = cselect_child(node, min_max_stats_lst->stats_lst[i], pb_c_base, pb_c_init, discount_factor, mean_q, players);
                 if (players > 1)
                 {
                     assert(virtual_to_play_batch[i] == 1 || virtual_to_play_batch[i] == 2);
@@ -765,10 +835,10 @@ namespace tree
                     }
                 }
 
-                node->best_action = action;
+                node->best_action = actions;
                 // next
-                node = node->get_child(action);
-                last_action = action;
+                node = node->get_child(actions);
+                last_action = actions;
                 results.search_paths[i].push_back(node);
                 search_len += 1;
             }

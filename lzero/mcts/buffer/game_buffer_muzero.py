@@ -124,10 +124,11 @@ class MuZeroGameBuffer(GameBuffer):
             mask_tmp += [0. for _ in range(self._cfg.num_unroll_steps + 1 - len(mask_tmp))]
 
             # pad random action
-            actions_tmp += [
-                np.random.randint(0, game.action_space_size)
-                for _ in range(self._cfg.num_unroll_steps - len(actions_tmp))
-            ]
+            # pad with random actions
+            while len(actions_tmp) < self._cfg.num_unroll_steps:
+                actions_tmp.append(
+                    [np.random.randint(0, game.action_space_size) for _ in range(4)]
+                )
 
             # obtain the input observations
             # pad if length of obs in game_segment is less than stack+num_unroll_steps

@@ -13,17 +13,33 @@
 #include <sys/timeb.h>
 #include <time.h>
 #include <map>
+#include <unordered_map>
 
 const int DEBUG_MODE = 0;
+const int ACTIONS_PER_PLAYER = 324;
 
 namespace tree {
+    // this class was created to avoid circular dependency of access children nodes before CNode fully defined. Unsure if this is the best implementation
+    class CNodeChildren; // Forward declaration
     class CNode {
         public:
-            int visit_count, to_play, current_latent_state_index, batch_index, best_action, is_reset;
+            // this class was created to avoid circular dependency of access children nodes before CNode fully defined. Unsure if this is the best implementation
+            class ChildrenAccessor
+            {
+            public:
+                ChildrenAccessor(CNodeChildren *children);
+                CNode &operator[](uint64_t action_key);
+                size_t size() const;
+
+            private:
+                CNodeChildren *children;
+            };
+            ChildrenAccessor children;
+            int visit_count, to_play, current_latent_state_index, batch_index, is_reset;
+            std::vector<int> best_action;
             float value_prefix, prior, value_sum;
             float parent_value_prefix;
             std::vector<int> children_index;
-            std::map<int, CNode> children;
 
             std::vector<int> legal_actions;
 
@@ -40,50 +56,56 @@ namespace tree {
 
             float value();
 
-            std::vector<int> get_trajectory();
+            std::vector<std::vector<int>> get_trajectory();
             std::vector<int> get_children_distribution();
-            CNode* get_child(int action);
+            CNode *get_child(const std::vector<int> &actions);
+            CNode *get_child(uint64_t action);
+
+        private:
+            CNodeChildren *childrenImpl;
+            static uint64_t encode_action(const std::vector<int> &actions);
     };
 
-    class CRoots{
-        public:
-            int root_num;
-            std::vector<CNode> roots;
-            std::vector<std::vector<int> > legal_actions_list;
+    class CRoots
+    {
+    public:
+        int root_num;
+        std::vector<CNode> roots;
+        std::vector<std::vector<int>> legal_actions_list;
 
-            CRoots();
-            CRoots(int root_num, std::vector<std::vector<int> > &legal_actions_list);
-            ~CRoots();
+        CRoots();
+        CRoots(int root_num, std::vector<std::vector<int>> &legal_actions_list);
+        ~CRoots();
 
-            void prepare(float root_noise_weight, const std::vector<std::vector<float> > &noises, const std::vector<float> &value_prefixs, const std::vector<std::vector<float> > &policies, std::vector<int> &to_play_batch);
-            void prepare_no_noise(const std::vector<float> &value_prefixs, const std::vector<std::vector<float> > &policies, std::vector<int> &to_play_batch);
-            void clear();
-            std::vector<std::vector<int> > get_trajectories();
-            std::vector<std::vector<int> > get_distributions();
-            std::vector<float> get_values();
-            CNode* get_root(int index);
+        void prepare(float root_noise_weight, const std::vector<std::vector<float>> &noises, const std::vector<float> &value_prefixs, const std::vector<std::vector<float>> &policies, std::vector<int> &to_play_batch);
+        void prepare_no_noise(const std::vector<float> &value_prefixs, const std::vector<std::vector<float>> &policies, std::vector<int> &to_play_batch);
+        void clear();
+        std::vector<std::vector<std::vector<int>>> get_trajectories();
+        std::vector<std::vector<int>> get_distributions();
+        std::vector<float> get_values();
+        CNode *get_root(int index);
     };
 
-    class CSearchResults{
-        public:
-            int num;
-            std::vector<int> latent_state_index_in_search_path, latent_state_index_in_batch, last_actions, search_lens;
-            std::vector<int> virtual_to_play_batchs;
-            std::vector<CNode*> nodes;
-            std::vector<std::vector<CNode*> > search_paths;
+    class CSearchResults
+    {
+    public:
+        int num;
+        std::vector<int> latent_state_index_in_search_path, latent_state_index_in_batch, search_lens;
+        std::vector<std::vector<int>> last_actions;
+        std::vector<int> virtual_to_play_batchs;
+        std::vector<CNode *> nodes;
+        std::vector<std::vector<CNode *>> search_paths;
 
-            CSearchResults();
-            CSearchResults(int num);
-            ~CSearchResults();
-
+        CSearchResults();
+        CSearchResults(int num);
+        ~CSearchResults();
     };
-
 
     //*********************************************************
     void update_tree_q(CNode* root, tools::CMinMaxStats &min_max_stats, float discount_factor, int players);
     void cbackpropagate(std::vector<CNode*> &search_path, tools::CMinMaxStats &min_max_stats, int to_play, float value, float discount_factor);
     void cbatch_backpropagate(int current_latent_state_index, float discount_factor, const std::vector<float> &value_prefixs, const std::vector<float> &values, const std::vector<std::vector<float> > &policies, tools::CMinMaxStatsList *min_max_stats_lst, CSearchResults &results, std::vector<int> is_reset_list, std::vector<int> &to_play_batch);
-    int cselect_child(CNode* root, tools::CMinMaxStats &min_max_stats, int pb_c_base, float pb_c_init, float discount_factor, float mean_q, int players);
+    std::vector<int> cselect_child(CNode *root, tools::CMinMaxStats &min_max_stats, int pb_c_base, float pb_c_init, float discount_factor, float mean_q, int players);
     float cucb_score(CNode *child, tools::CMinMaxStats &min_max_stats, float parent_mean_q, int is_reset, float total_children_visit_counts, float parent_value_prefix, float pb_c_base, float pb_c_init, float discount_factor, int players);
     void cbatch_traverse(CRoots *roots, int pb_c_base, float pb_c_init, float discount_factor, tools::CMinMaxStatsList *min_max_stats_lst, CSearchResults &results, std::vector<int> &virtual_to_play_batch);
 }

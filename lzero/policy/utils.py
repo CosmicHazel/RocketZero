@@ -494,7 +494,7 @@ def select_action(
     """
 
     actions = np.zeros(4, dtype=np.int64)
-    visit_count_distribution_entropy = np.zeros(4)
+    visit_count_distribution_entropies = np.zeros(4)
 
     visit_counts = np.array(visit_counts).reshape(4, 324)
 
@@ -504,7 +504,7 @@ def select_action(
         # Ensure player_visit_counts is not empty and contains non-zero values
         if np.sum(player_visit_counts) == 0:
             actions[player] = np.random.choice(324)
-            visit_count_distribution_entropy[player] = 0
+            visit_count_distribution_entropies[player] = 0
             continue
 
         action_probs = player_visit_counts ** (1 / temperature)
@@ -516,9 +516,12 @@ def select_action(
             action_pos = np.random.choice(324, p=action_probs)
 
         actions[player] = action_pos
-        visit_count_distribution_entropy[player] = entropy(action_probs, base=2)
+        visit_count_distribution_entropies[player] = entropy(action_probs, base=2)
 
-    return actions, visit_count_distribution_entropy
+    average_visit_count_distribution_entropy = np.mean(
+        visit_count_distribution_entropies
+    )
+    return actions, average_visit_count_distribution_entropy
 
 
 # def select_action(

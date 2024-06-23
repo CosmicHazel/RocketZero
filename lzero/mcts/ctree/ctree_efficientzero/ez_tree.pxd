@@ -33,19 +33,20 @@ cdef extern from "lib/cnode.h" namespace "tree":
     cdef cppclass CNode:
         CNode() except +
         CNode(float prior, vector[int] & legal_actions) except +
-        int visit_count, to_play, current_latent_state_index, batch_index, best_action
-        float value_prefixs, prior, value_sum, parent_value_prefix
+        int visit_count, to_play, current_latent_state_index, batch_index
+        vector[int] best_action
+        float value_prefix, prior, value_sum, parent_value_prefix
 
-        void expand(int to_play, int current_latent_state_index, int batch_index, float value_prefixs,
+        void expand(int to_play, int current_latent_state_index, int batch_index, float value_prefix,
                     vector[float] policy_logits)
         void add_exploration_noise(float exploration_fraction, vector[float] noises)
         float compute_mean_q(int isRoot, float parent_q, float discount_factor)
 
         int expanded()
         float value()
-        vector[int] get_trajectory()
+        vector[vector[int]] get_trajectory()
         vector[int] get_children_distribution()
-        CNode * get_child(int action)
+        CNode * get_child(const vector[int]& actions)
 
     cdef cppclass CRoots:
         CRoots() except +
@@ -59,7 +60,7 @@ cdef extern from "lib/cnode.h" namespace "tree":
         void prepare_no_noise(const vector[float] & value_prefixs, const vector[vector[float]] & policies,
                               vector[int] to_play_batch)
         void clear()
-        vector[vector[int]] get_trajectories()
+        vector[vector[vector[int]]] get_trajectories()
         vector[vector[int]] get_distributions()
         vector[float] get_values()
         # visualize related code
@@ -69,7 +70,8 @@ cdef extern from "lib/cnode.h" namespace "tree":
         CSearchResults() except +
         CSearchResults(int num) except +
         int num
-        vector[int] latent_state_index_in_search_path, latent_state_index_in_batch, last_actions, search_lens
+        vector[int] latent_state_index_in_search_path, latent_state_index_in_batch, search_lens
+        vector[vector[int]] last_actions
         vector[int] virtual_to_play_batchs
         vector[CNode *] nodes
 
