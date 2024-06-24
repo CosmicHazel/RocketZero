@@ -1,6 +1,6 @@
 <div id="top"></div>
 
-# LightZero
+# RocketZero (A fork of LightZero for Rocket League)
 
 <div align="center">
     <img width="1000px" height="auto" src="https://github.com/opendilab/LightZero/blob/main/LightZero.png"></a>
@@ -152,7 +152,7 @@ The environments and algorithms currently supported by LightZero are shown in th
 You can install the latest LightZero in development from the GitHub source codes with the following command:
 
 ```bash
-git clone https://github.com/opendilab/LightZero.git
+git clone https://github.com/CosmicHazel/RocketZero.git
 cd LightZero
 pip3 install -e .
 ```
@@ -188,6 +188,16 @@ Here's how to use our Dockerfile to build a Docker image, run a container from t
 [comment]: <> (- [AlphaGo Zero]&#40;https://www.nature.com/articles/nature24270&#41; )
 
 ## Quick Start
+
+For Rocket League!
+```bash
+cd LightZero
+python3 -u zoo/rocket_league/config/rocket_league_efficientzero_config.py
+```
+
+TODO I need to fix the requirements.txt for rlgym 2.0
+
+
 
 Train a MuZero agent to play [CartPole](https://gymnasium.farama.org/environments/classic_control/cart_pole/):
 
