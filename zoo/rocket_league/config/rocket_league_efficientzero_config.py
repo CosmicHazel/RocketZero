@@ -1,18 +1,28 @@
+import configparser
+import os
 from easydict import EasyDict
+
+config = configparser.ConfigParser()
+
+config_file = "../config/config.ini"
+default_config_file = "../config/config.default.ini"
+
+if os.path.exists(config_file):
+    config.read(config_file)
+else:
+    config.read(default_config_file)
 
 # Environment settings
 env_id = "RocketLeague-v0"
 
 # Action space configuration
 # TODO: Adjust these values to match your specific environment
-num_action_heads = 4
-action_space_size = (
-    324 * num_action_heads
-)  # 4 hot, each controlling a player, resulting in 324 possible actions. Should output in (4,324)
+num_action_heads = int(config["Settings"]["num_action_heads"])
+action_space_size = int(config["Settings"]["action_space_size"]) * num_action_heads
 
 # Observation space configuration
 # TODO: Adjust this value to match your specific environment
-obs_shape = 372
+obs_shape = int(config["Settings"]["obs_shape"])
 
 # Training parameters
 collector_env_num = 2

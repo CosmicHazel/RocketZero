@@ -41,8 +41,8 @@ from rlgym.rocket_league.state_mutators import (
 
 config = configparser.ConfigParser()
 
-config_file = "config.ini"
-default_config_file = "config.default.ini"
+config_file = "../config/config.ini"
+default_config_file = "../config/config.default.ini"
 
 if os.path.exists(config_file):
     config.read(config_file)
@@ -55,8 +55,8 @@ ORANGE_SIZE = int(config["Settings"]["ORANGE_SIZE"])
 ticks_per_step = int(config["Settings"]["ticks_per_step"])
 
 # TODO change this to match your env because I was too lazy to pass this from the config
-num_action_heads = 4
-action_space_size = 324
+num_action_heads = int(config["Settings"]["num_action_heads"])
+action_space_size = int(config["Settings"]["action_space_size"])
 
 
 # Define your custom Rocket League gym environment class here
