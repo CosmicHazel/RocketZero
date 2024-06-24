@@ -97,7 +97,6 @@ class RocketLeagueEnvLightZero(BaseEnv):
             else None
         )
 
-        print("Resetting")
         self.obs = self._env.reset()
         self.stored_action_blue = None
         self.stored_action_orange = None
