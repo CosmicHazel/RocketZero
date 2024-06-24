@@ -124,8 +124,7 @@ The environments and algorithms currently supported by LightZero are shown in th
 
 | Env./Algo.    | AlphaZero | MuZero | EfficientZero | Sampled EfficientZero | Gumbel MuZero | Stochastic MuZero | UniZero |
 |---------------| -------- | ------ |-------------| ------------------ | ---------- |----------------|---------------|
-
-| Rocket Leauge     | 🔒      | 🔒      | ✔            | 🔒                | 🔒          | 🔒             |🔒|
+| Rocket Leauge     | 🔒      | 🔒      | ✔🔒            | 🔒                | 🔒          | 🔒             |🔒|
 | TicTacToe     | ✔      | ✔      | 🔒           | 🔒                | ✔          | 🔒             |✔|
 | Gomoku        | ✔      | ✔      | 🔒          | 🔒               | ✔          | 🔒             |✔|
 | Connect4      | ✔      | ✔      | 🔒          | 🔒               | 🔒           | 🔒             |✔|
