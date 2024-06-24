@@ -32,14 +32,14 @@ class MuZeroCollector(ISerialCollector):
     config = dict()
 
     def __init__(
-            self,
-            collect_print_freq: int = 100,
-            env: BaseEnvManager = None,
-            policy: namedtuple = None,
-            tb_logger: 'SummaryWriter' = None,  # noqa
-            exp_name: Optional[str] = 'default_experiment',
-            instance_name: Optional[str] = 'collector',
-            policy_config: 'policy_config' = None,  # noqa
+        self,
+        collect_print_freq: int = 100,
+        env: BaseEnvManager = None,
+        policy: namedtuple = None,
+        tb_logger: "SummaryWriter" = None,  # noqa # type: ignore
+        exp_name: Optional[str] = "default_experiment",
+        instance_name: Optional[str] = "collector",
+        policy_config: "policy_config" = None,  # noqa # type: ignore
     ) -> None:
         """
         Overview:
@@ -210,7 +210,7 @@ class MuZeroCollector(ISerialCollector):
         if self.policy_config.use_priority:
             # Calculate priorities. The priorities are the L1 losses between the predicted
             # values and the search values. We use 'none' as the reduction parameter, which
-            # means the loss is calculated for each element individually, instead of being summed or averaged. 
+            # means the loss is calculated for each element individually, instead of being summed or averaged.
             # A small constant (1e-6) is added to the results to avoid zero priorities. This
             # is done because zero priorities could potentially cause issues in some scenarios.
             pred_values = torch.from_numpy(np.array(pred_values_lst[i])).to(self.policy_config.device).float().view(-1)

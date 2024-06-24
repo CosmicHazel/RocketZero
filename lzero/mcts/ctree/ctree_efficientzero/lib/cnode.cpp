@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <map>
 #include <cassert>
-#include <unordered_map>
 
 #ifdef _WIN32
 #include "..\..\common_lib\utils.cpp"
@@ -16,14 +15,14 @@
 /*
 Rocket League Bot Overview:
 
-This code is part of a Rocket League bot implementation using a novel "4-hot" control mechanism.
+This code is part of a Rocket League bot implementation using a novel "x-hot" control mechanism.
 Key features of the bot:
 
-1. 4-Hot Control: A single AI agent simultaneously controls all 4 players on the same team.
+1. x-Hot Control: A single AI agent simultaneously controls all NUM_ACTION_HEADS players on the same team.
    This allows for coordinated team strategies and complex multi-player maneuvers.
 
-2. Large Action Space: Each individual player has 324 possible actions, resulting in a
-   total action space of 1296 (324 * 4) for the entire team controlled by the AI.
+2. Large Action Space: Each individual player has ACTIONS_PER_PLAYER possible actions, resulting in a
+   total action space of TOTAL_ACTIONS (ACTIONS_PER_PLAYER * NUM_ACTION_HEADS) for the entire team controlled by the AI.
 
 3. MCTS Implementation: This file (cnode.cpp) implements the Monte Carlo Tree Search (MCTS)
    algorithm, which is used for decision making and planning in the bot's AI.
@@ -35,23 +34,6 @@ and effective gameplay strategies.
 
 namespace tree
 {
-    class CNodeChildren
-    {
-    public:
-        std::unordered_map<uint64_t, CNode> map;
-    };
-
-    CNode::ChildrenAccessor::ChildrenAccessor(CNodeChildren *children) : children(children) {}
-
-    CNode &CNode::ChildrenAccessor::operator[](uint64_t action_key)
-    {
-        return children->map[action_key];
-    }
-
-    size_t CNode::ChildrenAccessor::size() const
-    {
-        return children ? children->map.size() : 0;
-    }
 
     CSearchResults::CSearchResults()
     {
@@ -79,7 +61,7 @@ namespace tree
 
     //*********************************************************
 
-    CNode::CNode() : childrenImpl(new CNodeChildren()), children(childrenImpl)
+    CNode::CNode()
     {
         /*
         Overview:
@@ -97,8 +79,9 @@ namespace tree
         this->parent_value_prefix = 0.0;
     }
 
-    CNode::CNode(float prior, std::vector<int> &legal_actions) : childrenImpl(new CNodeChildren()), children(childrenImpl)
+    CNode::CNode(float prior, std::vector<int> &legal_actions)
     {
+
         /*
         Overview:
             Initialization of CNode with prior value and legal actions.
@@ -106,23 +89,43 @@ namespace tree
             - prior: the prior value of this node.
             - legal_actions: a vector of legal actions of this node.
         */
-        this->prior = prior;
-        this->legal_actions = legal_actions;
-        this->is_reset = 0;
-        this->visit_count = 0;
-        this->value_sum = 0;
-        this->best_action = {-1, -1, -1, -1};
-        this->to_play = 0;
-        this->value_prefix = 0.0;
-        this->parent_value_prefix = 0.0;
-        this->current_latent_state_index = -1;
-        this->batch_index = -1;
+
+        std::cout << "Entering CNode constructor" << std::endl;
+        std::cout << "prior: " << prior << std::endl;
+        std::cout << "legal_actions size: " << legal_actions.size() << std::endl;
+        try
+        {
+            std::cout << "Setting prior" << std::endl;
+            this->prior = prior;
+            std::cout << "Copying legal_actions" << std::endl;
+            this->legal_actions = legal_actions;
+
+            std::cout << "Initializing other members" << std::endl;
+            this->is_reset = 0;
+            this->visit_count = 0;
+            this->value_sum = 0;
+            this->best_action = {-1, -1, -1, -1};
+            this->to_play = 0;
+            this->value_prefix = 0.0;
+            this->parent_value_prefix = 0.0;
+            this->current_latent_state_index = -1;
+            this->batch_index = -1;
+
+            std::cout << "CNode constructor completed successfully" << std::endl;
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Exception in CNode constructor: " << e.what() << std::endl;
+            throw;
+        }
+        catch (...)
+        {
+            std::cerr << "Unknown exception in CNode constructor" << std::endl;
+            throw;
+        }
     }
 
-    CNode::~CNode()
-    {
-        delete childrenImpl;
-    }
+    CNode::~CNode() {}
 
     void CNode::expand(int to_play, int current_latent_state_index, int batch_index, float value_prefix, const std::vector<float> &policy_logits)
     {
@@ -141,8 +144,7 @@ namespace tree
         this->batch_index = batch_index;
         this->value_prefix = value_prefix;
 
-        int action_num = policy_logits.size() / 4; // Assuming policy_logits contains logits for all 4 players
-        assert(action_num == ACTIONS_PER_PLAYER);
+        int action_num = policy_logits.size(); // Assuming policy_logits contains logits for all NUM_ACTION_HEADS players
         if (this->legal_actions.size() == 0)
         {
             for (int i = 0; i < action_num; ++i)
@@ -153,13 +155,13 @@ namespace tree
         float temp_policy;
         float policy_sum = 0.0;
 
-        #ifdef _WIN32
+#ifdef _WIN32
         // 创建动态数组
-        float* policy = new float[action_num];
-        #else
+        float *policy = new float[action_num];
+#else
         float policy[action_num];
-        #endif
-        
+#endif
+
         float policy_max = FLOAT_MIN;
         for (auto a : this->legal_actions)
         {
@@ -176,17 +178,12 @@ namespace tree
             policy[a] = temp_policy;
         }
 
-        // float prior;
-
-        for (int player = 0; player < 4; player++)
+        float prior;
+        for (auto a : this->legal_actions)
         {
-            for (int a = 0; a < action_num; a++)
-            {
-                float prior = policy[a + player * action_num] / policy_sum;
-                int action_key = a + player * action_num; // Unique key for each action of each player
-                std::vector<int> tmp_empty;
-                this->children[action_key] = CNode(prior, tmp_empty);
-            }
+            prior = policy[a] / policy_sum;
+            std::vector<int> tmp_empty;
+            this->children[a] = new CNode(prior, tmp_empty);
         }
 #ifdef _WIN32
         // 释放数组内存
@@ -228,11 +225,11 @@ namespace tree
         float total_unsigned_q = 0.0;
         int total_visits = 0;
         float parent_value_prefix = this->value_prefix;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < NUM_ACTION_HEADS; i++)
         {
             for (auto a : this->legal_actions)
             {
-                CNode *child = this->get_child({a, a, a, a}); // This is a simplification
+                CNode *child = this->get_child(a + i * ACTIONS_PER_PLAYER); // This is a simplification
                 if (child->visit_count > 0)
                 {
                     float true_reward = child->value_prefix - parent_value_prefix;
@@ -328,16 +325,16 @@ namespace tree
         return distribution;
     }
 
-    CNode *CNode::get_child(const std::vector<int> &actions)
+    CNode *CNode::get_child(std::vector<int> actions)
     {
         uint64_t action_key = encode_action(actions);
-        return &(this->children[action_key]);
+        return (this->children[action_key]);
     }
 
-    uint64_t CNode::encode_action(const std::vector<int> &actions)
+    uint64_t CNode::encode_action(std::vector<int> actions)
     {
         uint64_t encoded = 0;
-        for (size_t i = 0; i < actions.size() && i < 4; ++i)
+        for (size_t i = 0; i < NUM_ACTION_HEADS; ++i)
         {
             encoded |= static_cast<uint64_t>(actions[i]) << (i * 16);
         }
@@ -352,7 +349,7 @@ namespace tree
         Arguments:
             - action: the action to get child.
         */
-        return &(this->children[action]);
+        return (this->children[action]);
     }
 
     //*********************************************************
@@ -366,22 +363,51 @@ namespace tree
         this->root_num = 0;
     }
 
-    CRoots::CRoots(int root_num, std::vector<std::vector<int> > &legal_actions_list)
+    CRoots::CRoots(int root_num, std::vector<std::vector<int>> &legal_actions_list)
     {
-        /*
-        Overview:
-            The initialization of CRoots with root num and legal action lists.
-        Arguments:
-            - root_num: the number of the current root.
-            - legal_action_list: the vector of the legal action of this root.
-        */
-        this->root_num = root_num;
-        this->legal_actions_list = legal_actions_list;
+        std::cout << "Entering CRoots constructor" << std::endl;
+        std::cout << "root_num: " << root_num << std::endl;
+        std::cout << "legal_actions_list size: " << legal_actions_list.size() << std::endl;
 
-        for (int i = 0; i < root_num; ++i)
+        try
         {
-            this->roots.push_back(CNode(0, this->legal_actions_list[i]));
+            this->root_num = root_num;
+            this->legal_actions_list = legal_actions_list;
+
+            std::cout << "About to create roots vector" << std::endl;
+            for (int i = 0; i < root_num; ++i)
+            {
+                std::cout << "Creating root " << i << std::endl;
+                this->roots.push_back(CNode(0, this->legal_actions_list[i]));
+                std::cout << "Root " << i << " created" << std::endl;
+            }
+            std::cout << "All roots created successfully" << std::endl;
         }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Exception in CRoots constructor: " << e.what() << std::endl;
+            throw;
+        }
+        catch (...)
+        {
+            std::cerr << "Unknown exception in CRoots constructor" << std::endl;
+            throw;
+        }
+
+        // /*
+        // Overview:
+        //     The initialization of CRoots with root num and legal action lists.
+        // Arguments:
+        //     - root_num: the number of the current root.
+        //     - legal_action_list: the vector of the legal action of this root.
+        // */
+        // this->root_num = root_num;
+        // this->legal_actions_list = legal_actions_list;
+
+        // for (int i = 0; i < root_num; ++i)
+        // {
+        //     this->roots.push_back(CNode(0, this->legal_actions_list[i]));
+        // }
     }
 
     CRoots::~CRoots() {}
@@ -438,7 +464,7 @@ namespace tree
         Overview:
             Find the current best trajectory starts from each root.
         Returns:
-            - trajs: a vector of trajectories, where each trajectory is a vector of 4-hot actions.
+            - trajs: a vector of trajectories, where each trajectory is a vector of x-hot actions.
         */
         std::vector<std::vector<std::vector<int>>> trajs;
         trajs.reserve(this->root_num);
@@ -681,10 +707,10 @@ namespace tree
             - action: the action to select.
         */
 
-        std::vector<int> actions;
+        std::vector<int> actions(4);
 
         // Select the best action for each player independently to reduce search space
-        for (int player = 0; player < 4; player++)
+        for (int player = 0; player < NUM_ACTION_HEADS; player++)
         {
             float max_score = FLOAT_MIN;
             int best_action = 0;
@@ -693,7 +719,7 @@ namespace tree
             {
                 // Use the existing children map to get the child node
                 // We're assuming here that the children map is populated with individual actions
-                // rather than full 4-hot action combinations
+                // rather than full x-hot action combinations
                 CNode *child = root->get_child(a + player * ACTIONS_PER_PLAYER);
 
                 if (child == nullptr)
@@ -793,7 +819,7 @@ namespace tree
         // set seed
         get_time_and_set_rand_seed();
 
-        std::vector<int> last_action = {-1, -1, -1, -1};
+        std::vector<int> last_action(4, -1);
         float parent_q = 0.0;
         results.search_lens = std::vector<int>();
 

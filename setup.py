@@ -56,13 +56,18 @@ def find_cython_extensions(path=None):
         relpath = os.path.relpath(os.path.abspath(item), start=here)
         rpath, _ = os.path.splitext(relpath)
         extname = '.'.join(rpath.split(os.path.sep))
-        extensions.append(Extension(
-            extname, [item],
-            include_dirs=[np.get_include()],
-            language="c++",
-            # extra_compile_args=["/std:c++latest"],  # only for Windows
-            # extra_link_args=["/std:c++latest"],  # only for Windows
-        ))
+        extensions.append(
+            Extension(
+                extname,
+                [item],
+                include_dirs=[np.get_include()],
+                language="c++",
+                extra_compile_args=["-g", "-O0"],  # Add these debug flags
+                extra_link_args=["-g"],  # Add this debug flag
+                # extra_compile_args=["/std:c++latest"],  # only for Windows
+                # extra_link_args=["/std:c++latest"],  # only for Windows
+            )
+        )
 
     return extensions
 
@@ -70,28 +75,27 @@ def find_cython_extensions(path=None):
 _LINETRACE = not not os.environ.get('LINETRACE', None)
 
 setup(
-    name='LightZero',
-    version='0.0.5',
-    description='A lightweight and efficient MCTS/AlphaZero/MuZero algorithm toolkits.',
-    long_description_content_type='text/markdown',
-    author='opendilab',
-    author_email='opendilab@pjlab.org.cn',
-    url='https://github.com/opendilab/LightZero',
-    license='Apache License, Version 2.0',
-    keywords='Reinforcement Learning, MCTS, MuZero',
+    name="LightZero",
+    version="0.0.5",
+    description="A lightweight and efficient MCTS/AlphaZero/MuZero algorithm toolkits.",
+    long_description_content_type="text/markdown",
+    author="opendilab",
+    author_email="opendilab@pjlab.org.cn",
+    url="https://github.com/opendilab/LightZero",
+    license="Apache License, Version 2.0",
+    keywords="Reinforcement Learning, MCTS, MuZero",
     packages=[
         # framework
-        *find_packages(include=('lzero', "lzero.*")),
+        *find_packages(include=("lzero", "lzero.*")),
         # application zoo
-        *find_packages(include=('zoo', 'zoo.*')),
+        *find_packages(include=("zoo", "zoo.*")),
     ],
     package_data={
-        package_name: ['*.yaml']
-        for package_name in find_packages(include=('lzero.*',))
+        package_name: ["*.yaml"] for package_name in find_packages(include=("lzero.*",))
     },
     python_requires=">=3.7",
     install_requires=requirements,
-    tests_require=group_requirements['test'],
+    tests_require=group_requirements["test"],
     extras_require=group_requirements,
     ext_modules=cythonize(
         find_cython_extensions(),
@@ -99,19 +103,20 @@ setup(
         compiler_directives=dict(
             linetrace=_LINETRACE,
         ),
+        gdb_debug=True,  # Add this line
     ),
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Science/Research",
-        'License :: OSI Approved :: Apache Software License',
-        'Operating System :: POSIX :: Linux',
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: POSIX :: Linux",
         # 'Operating System :: Microsoft :: Windows',
-        'Operating System :: MacOS :: MacOS X',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
-        'Topic :: Scientific/Engineering :: Artificial Intelligence',
+        "Operating System :: MacOS :: MacOS X",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
 )

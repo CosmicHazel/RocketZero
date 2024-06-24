@@ -258,6 +258,9 @@ class EfficientZeroMCTSCtree(object):
         ..note::
             The initialization is achieved by the ``Roots`` class from the ``ctree_efficientzero`` module.
         """
+        import psutil
+
+        print(f"Memory usage before Roots creation: {psutil.virtual_memory().percent}%")
         return tree_efficientzero.Roots(active_collect_env_num, legal_actions)
 
     def search(

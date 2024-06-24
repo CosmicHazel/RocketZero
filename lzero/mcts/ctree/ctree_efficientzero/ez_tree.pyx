@@ -3,6 +3,7 @@
 import cython
 from libcpp.vector cimport vector
 
+
 cdef class MinMaxStatsList:
     @cython.binding
     def __cinit__(self, int num):
@@ -27,8 +28,15 @@ cdef class ResultsWrapper:
 cdef class Roots:
     @cython.binding
     def __cinit__(self, int root_num, vector[vector[int]] legal_actions_list):
-        self.root_num = root_num
-        self.roots = new CRoots(root_num, legal_actions_list)
+        print(f"Initializing Roots with root_num: {root_num}")
+        try:
+            self.root_num = root_num
+            print(f"About to create CRoots for root_num: {root_num}")
+            self.roots = new CRoots(root_num, legal_actions_list)
+            print(f"CRoots created successfully for root_num: {root_num}")
+        except Exception as e:
+            print(f"Error in Roots.__cinit__: {e}")
+            raise
 
     @cython.binding
     def prepare(self, float root_noise_weight, list noises, list value_prefix_pool,

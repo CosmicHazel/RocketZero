@@ -815,7 +815,7 @@ namespace tree
         */
         std::stack<CNode *> node_stack;
         node_stack.push(root);
-        float parent_value_prefix = 0.0;
+        // float parent_value_prefix = 0.0;
         int is_reset = 0;
         while (node_stack.size() > 0)
         {

@@ -3,6 +3,11 @@
 from libcpp.vector cimport vector
 
 
+DEF NUM_ACTION_HEADS = 4
+DEF ACTIONS_PER_PLAYER = 324
+DEF TOTAL_ACTIONS = 1296
+
+
 cdef extern from "../common_lib/cminimax.cpp":
     pass
 
@@ -29,7 +34,14 @@ cdef extern from "lib/cnode.cpp":
     pass
 
 
+
+
 cdef extern from "lib/cnode.h" namespace "tree":
+    cdef int ACTIONS_PER_PLAYER
+    cdef int NUM_ACTION_HEADS
+    cdef int TOTAL_ACTIONS
+   
+    
     cdef cppclass CNode:
         CNode() except +
         CNode(float prior, vector[int] & legal_actions) except +
@@ -46,7 +58,7 @@ cdef extern from "lib/cnode.h" namespace "tree":
         float value()
         vector[vector[int]] get_trajectory()
         vector[int] get_children_distribution()
-        CNode * get_child(const vector[int]& actions)
+        CNode * get_child(vector[int] actions)
 
     cdef cppclass CRoots:
         CRoots() except +

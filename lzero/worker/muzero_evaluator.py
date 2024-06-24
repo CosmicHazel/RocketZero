@@ -45,16 +45,16 @@ class MuZeroEvaluator(ISerialEvaluator):
     )
 
     def __init__(
-            self,
-            eval_freq: int = 1000,
-            n_evaluator_episode: int = 3,
-            stop_value: int = 1e6,
-            env: BaseEnvManager = None,
-            policy: namedtuple = None,
-            tb_logger: 'SummaryWriter' = None,  # noqa
-            exp_name: Optional[str] = 'default_experiment',
-            instance_name: Optional[str] = 'evaluator',
-            policy_config: 'policy_config' = None,  # noqa
+        self,
+        eval_freq: int = 1000,
+        n_evaluator_episode: int = 3,
+        stop_value: int = 1e6,
+        env: BaseEnvManager = None,
+        policy: namedtuple = None,
+        tb_logger: "SummaryWriter" = None,  # noqa # type: ignore
+        exp_name: Optional[str] = "default_experiment",
+        instance_name: Optional[str] = "evaluator",
+        policy_config: "policy_config" = None,  # noqa # type: ignore
     ) -> None:
         """
         Overview:

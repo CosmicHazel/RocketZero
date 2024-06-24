@@ -13,57 +13,46 @@
 #include <sys/timeb.h>
 #include <time.h>
 #include <map>
-#include <unordered_map>
+#include <array>
 
-const int DEBUG_MODE = 0;
-const int ACTIONS_PER_PLAYER = 324;
+const int DEBUG_MODE = 1;
 
 namespace tree {
-    // this class was created to avoid circular dependency of access children nodes before CNode fully defined. Unsure if this is the best implementation
-    class CNodeChildren; // Forward declaration
+    constexpr int ACTIONS_PER_PLAYER = 324;
+    constexpr int NUM_ACTION_HEADS = 4;
+    constexpr int TOTAL_ACTIONS = NUM_ACTION_HEADS * ACTIONS_PER_PLAYER;
+
     class CNode {
-        public:
-            // this class was created to avoid circular dependency of access children nodes before CNode fully defined. Unsure if this is the best implementation
-            class ChildrenAccessor
-            {
-            public:
-                ChildrenAccessor(CNodeChildren *children);
-                CNode &operator[](uint64_t action_key);
-                size_t size() const;
+    public:
+        std::array<CNode *, TOTAL_ACTIONS> children;
+        int visit_count, to_play, current_latent_state_index, batch_index, is_reset;
+        std::vector<int> best_action;
+        float value_prefix, prior, value_sum;
+        float parent_value_prefix;
+        std::vector<int> children_index;
 
-            private:
-                CNodeChildren *children;
-            };
-            ChildrenAccessor children;
-            int visit_count, to_play, current_latent_state_index, batch_index, is_reset;
-            std::vector<int> best_action;
-            float value_prefix, prior, value_sum;
-            float parent_value_prefix;
-            std::vector<int> children_index;
+        std::vector<int> legal_actions;
 
-            std::vector<int> legal_actions;
+        CNode();
+        CNode(float prior, std::vector<int> &legal_actions);
+        ~CNode();
 
-            CNode();
-            CNode(float prior, std::vector<int> &legal_actions);
-            ~CNode();
+        void expand(int to_play, int current_latent_state_index, int batch_index, float value_prefix, const std::vector<float> &policy_logits);
+        void add_exploration_noise(float exploration_fraction, const std::vector<float> &noises);
+        float compute_mean_q(int isRoot, float parent_q, float discount_factor);
+        void print_out();
 
-            void expand(int to_play, int current_latent_state_index, int batch_index, float value_prefix, const std::vector<float> &policy_logits);
-            void add_exploration_noise(float exploration_fraction, const std::vector<float> &noises);
-            float compute_mean_q(int isRoot, float parent_q, float discount_factor);
-            void print_out();
+        int expanded();
 
-            int expanded();
+        float value();
 
-            float value();
+        std::vector<std::vector<int>> get_trajectory();
+        std::vector<int> get_children_distribution();
+        CNode *get_child(std::vector<int> actions);
+        CNode *get_child(uint64_t action);
 
-            std::vector<std::vector<int>> get_trajectory();
-            std::vector<int> get_children_distribution();
-            CNode *get_child(const std::vector<int> &actions);
-            CNode *get_child(uint64_t action);
-
-        private:
-            CNodeChildren *childrenImpl;
-            static uint64_t encode_action(const std::vector<int> &actions);
+    private:
+        static uint64_t encode_action(std::vector<int> actions);
     };
 
     class CRoots
