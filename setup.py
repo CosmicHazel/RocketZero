@@ -62,7 +62,7 @@ def find_cython_extensions(path=None):
                 [item],
                 include_dirs=[np.get_include()],
                 language="c++",
-                extra_compile_args=["-g", "-O0"],  # Add these debug flags
+                extra_compile_args=["-g", "-O0", "-std=c++11"],  # Add these debug flags
                 extra_link_args=["-g"],  # Add this debug flag
                 # extra_compile_args=["/std:c++latest"],  # only for Windows
                 # extra_link_args=["/std:c++latest"],  # only for Windows
