@@ -674,19 +674,30 @@ class EfficientZeroPolicy(MuZeroPolicy):
         with torch.no_grad():
             # data shape [B, S x C, W, H], e.g. {Tensor:(B, 12, 96, 96)}
             network_output = self._eval_model.initial_inference(data)
-            latent_state_roots, value_prefix_roots, reward_hidden_state_roots, pred_values, policy_logits = ez_network_output_unpack(
-                network_output
-            )
+            latent_state_roots, value_prefix_roots, reward_hidden_state_roots, pred_values, policy_logits = \
+                ez_network_output_unpack(network_output)
+
+            # Convert to plain Python lists if they're still tensors
+            if not isinstance(value_prefix_roots, list):
+                value_prefix_roots = value_prefix_roots.detach().cpu().numpy().tolist()
+            if not isinstance(policy_logits, list):
+                policy_logits = policy_logits.detach().cpu().numpy().tolist()
+            # Ensure "to_play" is a list of length = active_eval_env_num
+            if not isinstance(to_play, (list, tuple)):
+                to_play = [to_play] * active_eval_env_num
 
             if not self._eval_model.training:
                 # if not in training, obtain the scalars of the value/reward
-                pred_values = self.inverse_scalar_transform_handle(pred_values).detach().cpu().numpy()  # shape（B, 1）
+                pred_values = self.inverse_scalar_transform_handle(pred_values).detach().cpu().numpy()  # shape (B, 1)
                 latent_state_roots = latent_state_roots.detach().cpu().numpy()
                 reward_hidden_state_roots = (
                     reward_hidden_state_roots[0].detach().cpu().numpy(),
                     reward_hidden_state_roots[1].detach().cpu().numpy()
                 )
-                policy_logits = policy_logits.detach().cpu().numpy().tolist()  # list shape（B, A）
+                # Convert policy_logits to a list shape (B, A) only if it's still a torch.Tensor
+                if isinstance(policy_logits, torch.Tensor):
+                    policy_logits = policy_logits.detach().cpu().numpy().tolist()
+                # Otherwise, it's already a list - do nothing
 
             legal_actions = [[i for i, x in enumerate(action_mask[j]) if x == 1] for j in range(active_eval_env_num)]
             if self._cfg.mcts_ctree:

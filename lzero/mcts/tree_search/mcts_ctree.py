@@ -266,7 +266,6 @@ class EfficientZeroMCTSCtree(object):
         print(f"Memory usage before Roots creation: {psutil.virtual_memory().percent}%")
         print(f"active_collect_env_num: {active_collect_env_num}")
         print(f"legal_actions length: {len(legal_actions)}")
-        print(f"legal_actions shape: {legal_actions.shape if hasattr(legal_actions, 'shape') else None}")
         print(f"Called from: {__file__}")
         return tree_efficientzero.Roots(active_collect_env_num, legal_actions)
 
