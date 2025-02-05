@@ -138,13 +138,14 @@ class MuZeroMCTSCtree(object):
                 if self._cfg.env_type == 'not_board_games':
                     latent_state_index_in_search_path, latent_state_index_in_batch, last_actions, virtual_to_play_batch = tree_muzero.batch_traverse(
                         roots, pb_c_base, pb_c_init, discount_factor, min_max_stats_lst, results,
-                        to_play_batch
+                        to_play_batch.tolist() if isinstance(to_play_batch, np.ndarray) else to_play_batch
                     )
                 else:
-                    # the ``to_play_batch`` is only used in board games, here we need to deepcopy it to avoid changing the original data.
+                    # Ensure to_play_batch is a Python list before passing to C++
+                    to_play_batch_list = to_play_batch.tolist() if isinstance(to_play_batch, np.ndarray) else to_play_batch
                     latent_state_index_in_search_path, latent_state_index_in_batch, last_actions, virtual_to_play_batch = tree_muzero.batch_traverse(
                         roots, pb_c_base, pb_c_init, discount_factor, min_max_stats_lst, results,
-                        copy.deepcopy(to_play_batch)
+                        to_play_batch_list
                     )
 
                 # obtain the latent state for leaf node
@@ -325,13 +326,14 @@ class EfficientZeroMCTSCtree(object):
                 if self._cfg.env_type == 'not_board_games':
                     latent_state_index_in_search_path, latent_state_index_in_batch, last_actions, virtual_to_play_batch = tree_efficientzero.batch_traverse(
                         roots, pb_c_base, pb_c_init, discount_factor, min_max_stats_lst, results,
-                        to_play_batch
+                        to_play_batch.tolist() if isinstance(to_play_batch, np.ndarray) else to_play_batch
                     )
                 else:
-                    # the ``to_play_batch`` is only used in board games, here we need to deepcopy it to avoid changing the original data.
+                    # Ensure to_play_batch is a Python list before passing to C++
+                    to_play_batch_list = to_play_batch.tolist() if isinstance(to_play_batch, np.ndarray) else to_play_batch
                     latent_state_index_in_search_path, latent_state_index_in_batch, last_actions, virtual_to_play_batch = tree_efficientzero.batch_traverse(
                         roots, pb_c_base, pb_c_init, discount_factor, min_max_stats_lst, results,
-                        copy.deepcopy(to_play_batch)
+                        to_play_batch_list
                     )
                 # obtain the search horizon for leaf nodes
                 search_lens = results.get_search_len()
@@ -520,12 +522,13 @@ class GumbelMuZeroMCTSCtree(object):
                 """
                 if self._cfg.env_type == 'not_board_games':
                     latent_state_index_in_search_path, latent_state_index_in_batch, last_actions, virtual_to_play_batch = tree_gumbel_muzero.batch_traverse(
-                        roots, self._cfg.num_simulations, self._cfg.max_num_considered_actions, discount_factor, results, to_play_batch
+                        roots, self._cfg.num_simulations, self._cfg.max_num_considered_actions, discount_factor, results, to_play_batch.tolist() if isinstance(to_play_batch, np.ndarray) else to_play_batch
                     )
                 else:
-                    # the ``to_play_batch`` is only used in board games, here we need to deepcopy it to avoid changing the original data.
+                    # Ensure to_play_batch is a Python list before passing to C++
+                    to_play_batch_list = to_play_batch.tolist() if isinstance(to_play_batch, np.ndarray) else to_play_batch
                     latent_state_index_in_search_path, latent_state_index_in_batch, last_actions, virtual_to_play_batch = tree_gumbel_muzero.batch_traverse(
-                        roots, self._cfg.num_simulations, self._cfg.max_num_considered_actions, discount_factor, results, copy.deepcopy(to_play_batch)
+                        roots, self._cfg.num_simulations, self._cfg.max_num_considered_actions, discount_factor, results, to_play_batch_list
                     )
 
                 # obtain the states for leaf nodes

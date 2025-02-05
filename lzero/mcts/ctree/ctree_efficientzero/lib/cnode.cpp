@@ -49,12 +49,20 @@ namespace tree
         /*
         Overview:
             Initialization of CSearchResults with result number.
+        Arguments:
+            - num: The number of results to initialize.
         */
         this->num = num;
-        for (int i = 0; i < num; ++i)
-        {
-            this->search_paths.push_back(std::vector<CNode *>());
+        this->search_paths.resize(num);  // Initialize search_paths first
+        for (int i = 0; i < num; ++i) {
+            this->search_paths[i] = std::vector<CNode*>();  // Initialize each inner vector
         }
+        this->latent_state_index_in_search_path.resize(num);
+        this->latent_state_index_in_batch.resize(num);
+        this->last_actions.resize(num);
+        this->search_lens.resize(num);
+        this->virtual_to_play_batchs.resize(num);
+        this->nodes.resize(num);
     }
 
     CSearchResults::~CSearchResults() {}
@@ -90,17 +98,17 @@ namespace tree
             - legal_actions: a vector of legal actions of this node.
         */
 
-        std::cout << "Entering CNode constructor" << std::endl;
-        std::cout << "prior: " << prior << std::endl;
-        std::cout << "legal_actions size: " << legal_actions.size() << std::endl;
+        //std::cout << "Entering CNode constructor" << std::endl;
+        //std::cout << "prior: " << prior << std::endl;
+        //std::cout << "legal_actions size: " << legal_actions.size() << std::endl;
         try
         {
-            std::cout << "Setting prior" << std::endl;
+            //std::cout << "Setting prior" << std::endl;
             this->prior = prior;
-            std::cout << "Copying legal_actions" << std::endl;
+            //std::cout << "Copying legal_actions" << std::endl;
             this->legal_actions = legal_actions;
 
-            std::cout << "Initializing other members" << std::endl;
+            //std::cout << "Initializing other members" << std::endl;
             this->is_reset = 0;
             this->visit_count = 0;
             this->value_sum = 0;
@@ -111,7 +119,7 @@ namespace tree
             this->current_latent_state_index = -1;
             this->batch_index = -1;
 
-            std::cout << "CNode constructor completed successfully" << std::endl;
+            //std::cout << "CNode constructor completed successfully" << std::endl;
         }
         catch (const std::exception &e)
         {
@@ -327,29 +335,57 @@ namespace tree
 
     CNode *CNode::get_child(std::vector<int> actions)
     {
+        /*
+        Overview:
+            Get the child node corresponding to the input x-hot action vector.
+        Arguments:
+            - actions: vector of actions, one for each player (x-hot encoding)
+        Returns:
+            - child node pointer or nullptr if not found
+        */
+        if (actions.size() != NUM_ACTION_HEADS)
+            return nullptr;
+
         uint64_t action_key = encode_action(actions);
-        return (this->children[action_key]);
+        if (action_key >= children.size() || children[action_key] == nullptr)
+            return nullptr;
+        return children[action_key];
     }
 
     uint64_t CNode::encode_action(std::vector<int> actions)
     {
+        /*
+        Overview:
+            Encode x-hot action vector into a single uint64_t key.
+        Arguments:
+            - actions: vector of actions, one for each player
+        Returns:
+            - encoded action key
+        */
         uint64_t encoded = 0;
-        for (size_t i = 0; i < NUM_ACTION_HEADS; ++i)
+        for (size_t i = 0; i < NUM_ACTION_HEADS && i < actions.size(); ++i)
         {
-            encoded |= static_cast<uint64_t>(actions[i]) << (i * 16);
+            if (actions[i] >= 0 && actions[i] < ACTIONS_PER_PLAYER)
+            {
+                encoded += static_cast<uint64_t>(actions[i]) + i * ACTIONS_PER_PLAYER;
+            }
         }
-        return encoded;
+        return encoded < TOTAL_ACTIONS ? encoded : TOTAL_ACTIONS - 1;
     }
 
     CNode *CNode::get_child(uint64_t action)
     {
         /*
         Overview:
-            Get the child node corresponding to the input action.
+            Get the child node corresponding to the encoded action key.
         Arguments:
-            - action: the action to get child.
+            - action: encoded action key
+        Returns:
+            - child node pointer or nullptr if not found
         */
-        return (this->children[action]);
+        if (action >= children.size() || children[action] == nullptr)
+            return nullptr;
+        return children[action];
     }
 
     //*********************************************************
@@ -704,42 +740,41 @@ namespace tree
             - mean_q: the mean q value of the parent node.
             - players: the number of players.
         Returns:
-            - action: the action to select.
+            - action: the action vector to select.
         */
+        float max_score = FLOAT_MIN;
+        const float epsilon = 0.000001;
+        std::vector<int> max_index_lst;
 
-        std::vector<int> actions(4);
-
-        // Select the best action for each player independently to reduce search space
-        for (int player = 0; player < NUM_ACTION_HEADS; player++)
+        for (auto a : root->legal_actions)
         {
-            float max_score = FLOAT_MIN;
-            int best_action = 0;
+            CNode *child = root->get_child(a);
+            float temp_score = cucb_score(child, min_max_stats, mean_q, root->is_reset, root->visit_count - 1, root->value_prefix, pb_c_base, pb_c_init, discount_factor, players);
 
-            for (int a = 0; a < ACTIONS_PER_PLAYER; a++)
+            if (max_score < temp_score)
             {
-                // Use the existing children map to get the child node
-                // We're assuming here that the children map is populated with individual actions
-                // rather than full x-hot action combinations
-                CNode *child = root->get_child(a + player * ACTIONS_PER_PLAYER);
-
-                if (child == nullptr)
-                    continue; // Skip if this action doesn't exist
-
-                float temp_score = cucb_score(child, min_max_stats, mean_q, root->is_reset,
-                                              root->visit_count - 1, root->value_prefix,
-                                              pb_c_base, pb_c_init, discount_factor, players);
-
-                if (temp_score > max_score)
-                {
-                    max_score = temp_score;
-                    best_action = a;
-                }
+                max_score = temp_score;
+                max_index_lst.clear();
+                max_index_lst.push_back(a);
             }
-
-            actions[player] = best_action;
+            else if (temp_score >= max_score - epsilon)
+            {
+                max_index_lst.push_back(a);
+            }
         }
 
-        return actions;
+        if (max_index_lst.size() > 0)
+        {
+            int rand_index = rand() % max_index_lst.size();
+            std::vector<int> result(NUM_ACTION_HEADS, -1);
+            result[0] = max_index_lst[rand_index];  // Only set the first action
+            return result;
+        }
+        else
+        {
+            // Return a default action vector with -1s if no valid actions found
+            return std::vector<int>(NUM_ACTION_HEADS, -1);
+        }
     }
 
     float cucb_score(CNode *child, tools::CMinMaxStats &min_max_stats, float parent_mean_q, int is_reset, float total_children_visit_counts, float parent_value_prefix, float pb_c_base, float pb_c_init, float discount_factor, int players)
@@ -819,20 +854,38 @@ namespace tree
         // set seed
         get_time_and_set_rand_seed();
 
-        std::vector<int> last_action(4, -1);
         float parent_q = 0.0;
-        results.search_lens = std::vector<int>();
+
+        // Initialize vectors with the correct size
+        results.latent_state_index_in_search_path.clear();
+        results.latent_state_index_in_batch.clear();
+        results.last_actions.clear();
+        results.search_lens.clear();
+        results.virtual_to_play_batchs.clear();
+        results.nodes.clear();
+
+        // Initialize vectors with the correct size
+        results.latent_state_index_in_search_path.resize(results.num);
+        results.latent_state_index_in_batch.resize(results.num);
+        results.last_actions.resize(results.num);
+        results.search_lens.resize(results.num);
+        results.virtual_to_play_batchs.resize(results.num);
+        results.nodes.resize(results.num);
+        results.search_paths.resize(results.num);
+
+        // Initialize virtual_to_play_batchs and search_paths
+        for (int i = 0; i < results.num; ++i) {
+            results.virtual_to_play_batchs[i] = virtual_to_play_batch[i];
+            results.search_paths[i] = std::vector<CNode*>();  // Initialize each search path vector
+            results.last_actions[i] = std::vector<int>();  // Initialize each last_actions vector
+        }
 
         int players = 0;
         int largest_element = *max_element(virtual_to_play_batch.begin(), virtual_to_play_batch.end()); // 0 or 2
         if (largest_element == -1)
-        {
             players = 1;
-        }
         else
-        {
             players = 2;
-        }
 
         for (int i = 0; i < results.num; ++i)
         {
@@ -864,20 +917,26 @@ namespace tree
                 node->best_action = actions;
                 // next
                 node = node->get_child(actions);
-                last_action = actions;
+                // Initialize last_actions[i] with the correct size if empty
+                if (results.last_actions[i].empty()) {
+                    results.last_actions[i].resize(NUM_ACTION_HEADS, -1);
+                }
+                // Copy each action value
+                for (size_t j = 0; j < actions.size() && j < NUM_ACTION_HEADS; ++j) {
+                    results.last_actions[i][j] = actions[j];
+                }
                 results.search_paths[i].push_back(node);
                 search_len += 1;
             }
 
             CNode *parent = results.search_paths[i][results.search_paths[i].size() - 2];
 
-            results.latent_state_index_in_search_path.push_back(parent->current_latent_state_index);
-            results.latent_state_index_in_batch.push_back(parent->batch_index);
+            results.latent_state_index_in_search_path[i] = parent->current_latent_state_index;
+            results.latent_state_index_in_batch[i] = parent->batch_index;
 
-            results.last_actions.push_back(last_action);
-            results.search_lens.push_back(search_len);
-            results.nodes.push_back(node);
-            results.virtual_to_play_batchs.push_back(virtual_to_play_batch[i]);
+            results.search_lens[i] = search_len;
+            results.nodes[i] = node;
+            results.virtual_to_play_batchs[i] = virtual_to_play_batch[i];
         }
     }
 }
